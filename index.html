@@ -4,7 +4,86 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>Lokshahi Din Arj · लोकशाही दिन अर्ज</title>
-<link href="https://fonts.googleapis.com/css2?family=Tiro+Devanagari+Marathi&family=DM+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Tiro+Devanagari+Marathi&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
+
+<!-- ═══ FIREBASE SDKs ═══ -->
+<script type="module">
+// ─────────────────────────────────────────────────────────────
+//  🔥 PASTE YOUR FIREBASE CONFIG HERE
+//  Go to Firebase Console → Project Settings → Your Apps → SDK setup
+// ─────────────────────────────────────────────────────────────
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, collection, addDoc, getDocs, doc, updateDoc, query, where, orderBy, onSnapshot, serverTimestamp }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getStorage, ref, uploadBytes, getDownloadURL }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDpq7UA_CoYDk6hyAYZVP_6otXz4qWqEoA",
+  authDomain: "e-lokshahi-website.firebaseapp.com",
+  projectId: "e-lokshahi-website",
+  storageBucket: "e-lokshahi-website.firebasestorage.app",
+  messagingSenderId: "791880174963",
+  appId: "1:791880174963:web:069dfa1450314d79a04906",
+  measurementId: "G-M241KCTQBS"
+};
+// ─────────────────────────────────────────────────────────────
+
+const app  = initializeApp(firebaseConfig);
+const db   = getFirestore(app);
+const storage = getStorage(app);
+
+// Expose to global scope so non-module functions can call them
+window._db      = db;
+window._storage = storage;
+window._fbReady = true;
+
+// Firestore helpers
+window.fbAddComplaint = async (data) => {
+  const docRef = await addDoc(collection(db, "complaints"), {
+    ...data,
+    submittedAt: serverTimestamp(),
+    replies: [],
+    status: "Pending"
+  });
+  return docRef.id;
+};
+
+window.fbGetComplaints = async (filters = {}) => {
+  let q = collection(db, "complaints");
+  const constraints = [orderBy("submittedAt", "desc")];
+  if (filters.dept)   constraints.unshift(where("dept", "==", filters.dept));
+  if (filters.status) constraints.unshift(where("status", "==", filters.status));
+  if (filters.mobile) constraints.unshift(where("mobile", "==", filters.mobile));
+  const snap = await getDocs(query(q, ...constraints));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+};
+
+window.fbUpdateComplaint = async (id, data) => {
+  await updateDoc(doc(db, "complaints", id), data);
+};
+
+// Storage upload: files go into /complaints/{dept}/{refNo}/{filename}
+window.fbUploadFile = async (file, dept, refNo) => {
+  const safeDept = dept.split("·")[0].trim().replace(/\s+/g, "_");
+  const path = `complaints/${safeDept}/${refNo}/${file.name}`;
+  const storageRef = ref(storage, path);
+  await uploadBytes(storageRef, file);
+  const url = await getDownloadURL(storageRef);
+  return { name: file.name, size: file.size, path, url };
+};
+
+// Live listener for admin dashboard
+window.fbListen = (callback) => {
+  const q = query(collection(db, "complaints"), orderBy("submittedAt", "desc"));
+  return onSnapshot(q, snap => {
+    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+  });
+};
+
+console.log("🔥 Firebase initialized");
+</script>
+
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -18,11 +97,11 @@
   --purple:#6D28D9;--purple-l:#F5F3FF;
   --r:10px;--rs:6px;
   --sh:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.04);
-  --shm:0 4px 16px rgba(0,0,0,.1),0 2px 4px rgba(0,0,0,.04);
+  --shm:0 4px 16px rgba(0,0,0,.1);
 }
 body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:15px;line-height:1.6}
 
-/* ── NAVBAR ── */
+/* NAVBAR */
 .navbar{background:var(--blue);color:#fff;padding:0 1.5rem;display:flex;align-items:center;height:54px;gap:12px;position:sticky;top:0;z-index:200;box-shadow:0 2px 8px rgba(0,0,0,.22)}
 .navbar-logo{font-size:22px}
 .navbar-title{font-size:14px;font-weight:600}
@@ -31,14 +110,18 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .navbar-logout{margin-left:10px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);color:#fff;font-size:12px;padding:4px 12px;border-radius:6px;cursor:pointer;font-family:'DM Sans',sans-serif}
 .navbar-logout:hover{background:rgba(255,255,255,.22)}
 
-/* ── LAYOUT ── */
+/* LAYOUT */
 .page{display:none}.page.active{display:block}
-.container{max-width:860px;margin:0 auto;padding:2rem 1rem 4rem}
-.wide{max-width:1100px}
+.container{max-width:880px;margin:0 auto;padding:2rem 1rem 4rem}
+.wide{max-width:1140px}
 
-/* ── LOGIN ── */
+/* FIREBASE BANNER */
+.fb-banner{background:#FFF3CD;border:1px solid #FBBF24;border-left:4px solid #F59E0B;border-radius:var(--rs);padding:10px 14px;font-size:13px;color:#78350F;margin-bottom:1rem;display:none}
+.fb-banner.show{display:flex;gap:8px;align-items:flex-start}
+
+/* LOGIN */
 .login-wrap{min-height:calc(100vh - 54px);display:flex;align-items:center;justify-content:center;padding:2rem 1rem}
-.login-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:2.5rem 2rem;width:100%;max-width:420px;box-shadow:var(--shm)}
+.login-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:2.5rem 2rem;width:100%;max-width:440px;box-shadow:var(--shm)}
 .login-card h2{font-size:20px;font-weight:600;color:var(--blue);margin-bottom:4px}
 .login-card p{font-size:13px;color:var(--muted);margin-bottom:1.75rem}
 .role-tabs{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:1.5rem}
@@ -47,35 +130,37 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .role-tab.active{border-color:var(--blue);background:var(--blue-l);color:var(--blue)}
 .role-tab .rt-icon{font-size:20px;display:block;margin-bottom:2px}
 
-/* ── FORMS ── */
+/* FORMS */
 .field{display:flex;flex-direction:column;gap:5px;margin-bottom:14px}
 .field:last-child{margin-bottom:0}
 .field label{font-size:13px;font-weight:500;color:var(--muted)}
 .req{color:var(--red);margin-left:2px}
 .field input,.field select,.field textarea{font-family:'DM Sans',sans-serif;font-size:14px;padding:9px 12px;border:1.5px solid var(--border);border-radius:var(--rs);background:var(--surface);color:var(--text);width:100%;outline:none;transition:border-color .15s,box-shadow .15s;appearance:none}
 .field input:focus,.field select:focus,.field textarea:focus{border-color:var(--blue-m);box-shadow:0 0 0 3px rgba(37,99,196,.12)}
-.field textarea{resize:vertical;min-height:90px;line-height:1.7}
+.field input::placeholder,.field textarea::placeholder{color:var(--hint)}
+.field textarea{resize:vertical;min-height:100px;line-height:1.7}
 .field select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%236B6861' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:36px}
 .char-count{font-size:11px;color:var(--hint);text-align:right}
 .radio-group{display:flex;gap:10px;flex-wrap:wrap;margin-top:4px}
-.radio-opt{display:flex;align-items:center;gap:7px;cursor:pointer;font-size:14px;color:var(--text);padding:6px 12px;border:1.5px solid var(--border);border-radius:var(--rs);transition:all .15s;user-select:none}
+.radio-opt{display:flex;align-items:center;gap:7px;cursor:pointer;font-size:14px;padding:6px 12px;border:1.5px solid var(--border);border-radius:var(--rs);transition:all .15s;user-select:none;color:var(--text)}
 .radio-opt:hover,.radio-opt.sel{border-color:var(--blue-m);background:var(--blue-l);color:var(--blue)}
 .radio-opt input{accent-color:var(--blue-m);width:15px;height:15px;cursor:pointer}
 
-/* ── CARDS ── */
+/* CARDS */
 .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:1.5rem;margin-bottom:1rem;box-shadow:var(--sh)}
 .section-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--hint);border-bottom:1px solid var(--border);padding-bottom:10px;margin-bottom:1.25rem;display:flex;align-items:center;gap:8px}
 .section-label span{color:var(--text)}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
 
-/* ── BUTTONS ── */
+/* BUTTONS */
 .btn-row{display:flex;gap:10px;justify-content:flex-end;margin-top:1.25rem}
 .btn{padding:9px 20px;border-radius:var(--rs);font-size:14px;font-weight:500;cursor:pointer;border:1.5px solid var(--border);background:var(--surface);color:var(--text);transition:all .15s;font-family:'DM Sans',sans-serif;display:inline-flex;align-items:center;gap:6px}
 .btn:hover{background:var(--bg)}
 .btn:active{transform:scale(.98)}
+.btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
 .btn-primary{background:var(--blue);color:#fff;border-color:var(--blue);box-shadow:0 2px 8px rgba(26,79,156,.22)}
-.btn-primary:hover{background:#153F80;border-color:#153F80}
+.btn-primary:hover{background:#153F80}
 .btn-green{background:var(--green);color:#fff;border-color:var(--green)}
 .btn-green:hover{background:#164f32}
 .btn-red{color:var(--red);border-color:#FECACA}
@@ -83,7 +168,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .btn-sm{padding:6px 14px;font-size:13px}
 .btn-xs{padding:4px 10px;font-size:12px}
 
-/* ── STEPPER ── */
+/* STEPPER */
 .stepper{display:flex;align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:1rem 1.25rem;margin-bottom:1.5rem;box-shadow:var(--sh);overflow-x:auto}
 .step{display:flex;align-items:center;gap:8px;flex-shrink:0}
 .step-circle{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0;transition:all .2s}
@@ -99,7 +184,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .step-connector{flex:1;height:2px;background:var(--border);margin:0 12px;min-width:20px;transition:background .3s}
 .step-connector.done{background:var(--green)}
 
-/* ── HEADER CARD ── */
+/* HEADER CARD */
 .header-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:1.5rem;margin-bottom:1.5rem;display:flex;align-items:center;gap:1.25rem;box-shadow:var(--sh)}
 .header-seal{width:68px;height:68px;flex-shrink:0;background:var(--blue-l);border-radius:50%;border:2px solid var(--blue);display:flex;align-items:center;justify-content:center;font-size:34px}
 .header-text h1{font-size:20px;font-weight:600;color:var(--blue);margin-bottom:2px}
@@ -109,16 +194,14 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .badge{font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;letter-spacing:.03em;text-transform:uppercase}
 .badge-blue{background:var(--blue-l);color:var(--blue)}
 .badge-green{background:var(--green-l);color:var(--green)}
-.badge-red{background:var(--red-l);color:var(--red)}
-.badge-orange{background:var(--orange-l);color:var(--orange)}
-.badge-yellow{background:var(--yellow-l);color:var(--yellow)}
-.badge-purple{background:var(--purple-l);color:var(--purple)}
+.badge-live{background:#D1FAE5;color:#065F46;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
 
-/* ── BANNERS ── */
-.info-banner{background:var(--blue-l);border:1px solid #BFCFE8;border-left:4px solid var(--blue);border-radius:var(--rs);padding:10px 14px;font-size:13px;color:var(--blue);margin-bottom:1rem;display:flex;gap:8px;align-items:flex-start}
+/* BANNERS */
+.info-banner{background:var(--blue-l);border:1px solid #BFCFE8;border-left:4px solid var(--blue);border-radius:var(--rs);padding:10px 14px;font-size:13px;color:var(--blue);margin-bottom:1rem;display:flex;gap:8px}
 .warn-banner{background:var(--orange-l);border:1px solid #FED7AA;border-left:4px solid var(--orange);border-radius:var(--rs);padding:10px 14px;font-size:13px;color:var(--orange);margin-bottom:1rem}
 
-/* ── UPLOAD ── */
+/* UPLOAD */
 .upload-zone{border:2px dashed var(--border-strong);border-radius:var(--r);padding:2rem 1.5rem;text-align:center;cursor:pointer;transition:all .2s;background:var(--bg)}
 .upload-zone:hover,.upload-zone.dragover{border-color:var(--blue-m);background:var(--blue-l)}
 .upload-zone p{font-size:14px;color:var(--muted)}
@@ -127,23 +210,24 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .file-list{margin-top:12px;display:flex;flex-direction:column;gap:8px}
 .file-item{display:flex;align-items:center;gap:10px;padding:9px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--rs);font-size:13px}
 .file-ext{font-size:10px;font-weight:700;padding:3px 7px;border-radius:4px;background:var(--blue-l);color:var(--blue);text-transform:uppercase;flex-shrink:0}
-.file-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)}
+.file-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .file-size{font-size:11px;color:var(--hint);flex-shrink:0}
-.file-del{background:none;border:none;cursor:pointer;color:var(--hint);font-size:16px;padding:0 2px;transition:color .15s;line-height:1}
+.file-del{background:none;border:none;cursor:pointer;color:var(--hint);font-size:16px;padding:0 2px;line-height:1}
 .file-del:hover{color:var(--red)}
+.file-uploaded{color:var(--green);font-size:11px;font-weight:600}
 
-/* ── DECLARATION ── */
+/* DECLARATION */
 .decl-box{border:1.5px solid var(--border);border-radius:var(--rs);padding:1rem;background:#FAFAF8}
 .decl-label{display:flex;gap:12px;align-items:flex-start;cursor:pointer}
 .decl-label input{width:18px;height:18px;margin-top:2px;accent-color:var(--blue-m);flex-shrink:0;cursor:pointer}
-.decl-text{font-size:14px;line-height:1.7;color:var(--text)}
+.decl-text{font-size:14px;line-height:1.7}
 .decl-mr{font-size:13px;color:var(--muted);margin-top:4px;font-family:'Tiro Devanagari Marathi',serif}
 
-/* ── DASHBOARD ── */
+/* DASHBOARD */
 .dash-header{padding:1.75rem 0 1rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap}
 .dash-header h2{font-size:20px;font-weight:600}
 .dash-header p{font-size:13px;color:var(--muted);margin-top:2px}
-.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:1.5rem}
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:1.5rem}
 .stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:1.25rem;box-shadow:var(--sh)}
 .stat-card .val{font-size:28px;font-weight:700;line-height:1}
 .stat-card .lbl{font-size:12px;color:var(--muted);margin-top:4px;font-weight:500}
@@ -153,7 +237,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .stat-card.red .val{color:var(--red)}
 .stat-card.purple .val{color:var(--purple)}
 
-/* ── TABLE ── */
+/* TABLE */
 .tbl-wrap{overflow-x:auto}
 table.ctbl{width:100%;border-collapse:collapse;font-size:13px}
 table.ctbl th{padding:10px 12px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--hint);border-bottom:2px solid var(--border);white-space:nowrap;font-weight:600}
@@ -165,7 +249,7 @@ table.ctbl tr:hover td{background:#FAFAF8}
 .td-dept{font-size:12px;color:var(--muted)}
 .td-date{font-size:12px;color:var(--hint);white-space:nowrap}
 
-/* ── STATUS BADGES ── */
+/* STATUS */
 .status{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
 .status::before{content:'';width:6px;height:6px;border-radius:50%;flex-shrink:0}
 .s-pending{background:var(--yellow-l);color:var(--yellow)}.s-pending::before{background:var(--yellow)}
@@ -174,70 +258,45 @@ table.ctbl tr:hover td{background:#FAFAF8}
 .s-resolved{background:var(--green-l);color:var(--green)}.s-resolved::before{background:var(--green)}
 .s-rejected{background:var(--red-l);color:var(--red)}.s-rejected::before{background:var(--red)}
 
-/* ── DEPT FOLDER GRID ── */
+/* FOLDER GRID */
 .folder-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:1.5rem}
 .folder-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:1.25rem 1rem;box-shadow:var(--sh);cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:12px}
 .folder-card:hover{border-color:var(--blue-m);box-shadow:var(--shm);transform:translateY(-1px)}
 .folder-icon{font-size:28px;flex-shrink:0}
-.folder-info .fname{font-size:14px;font-weight:500;color:var(--text)}
+.folder-info .fname{font-size:14px;font-weight:500}
 .folder-info .fcount{font-size:12px;color:var(--muted);margin-top:2px}
 .folder-info .fnew{font-size:11px;font-weight:600;color:var(--orange)}
 
-/* ── COMPLAINT DETAIL MODAL ── */
+/* MODAL */
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:500;display:flex;align-items:flex-start;justify-content:center;padding:2rem 1rem;overflow-y:auto}
 .modal-overlay.hidden{display:none}
-.modal{background:var(--surface);border-radius:var(--r);width:100%;max-width:700px;box-shadow:0 20px 60px rgba(0,0,0,.2);animation:slideUp .2s ease}
+.modal{background:var(--surface);border-radius:var(--r);width:100%;max-width:720px;box-shadow:0 20px 60px rgba(0,0,0,.2);animation:slideUp .2s ease}
 @keyframes slideUp{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
 .modal-header{padding:1.25rem 1.5rem;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
 .modal-header h3{font-size:16px;font-weight:600}
 .modal-close{background:none;border:none;font-size:20px;cursor:pointer;color:var(--hint);line-height:1;padding:2px}
 .modal-close:hover{color:var(--text)}
-.modal-body{padding:1.5rem}
-.modal-footer{padding:1rem 1.5rem;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
+.modal-body{padding:1.5rem;max-height:70vh;overflow-y:auto}
+.modal-footer{padding:1rem 1.5rem;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;align-items:center}
 .detail-row{display:flex;gap:8px;margin-bottom:10px;font-size:14px}
 .detail-label{color:var(--muted);font-size:13px;min-width:120px;flex-shrink:0}
-.detail-val{color:var(--text);font-weight:500}
+.detail-val{color:var(--text);font-weight:500;word-break:break-word}
 .reply-thread{margin-top:1.25rem;border-top:1px solid var(--border);padding-top:1.25rem}
 .reply-thread h4{font-size:13px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px}
 .reply-item{padding:10px 14px;border-radius:var(--rs);margin-bottom:8px;font-size:13px;line-height:1.7}
 .reply-item.admin-reply{background:var(--blue-l);border-left:3px solid var(--blue)}
 .reply-item.dept-reply{background:var(--green-l);border-left:3px solid var(--green)}
-.reply-item.user-note{background:var(--bg);border:1px solid var(--border)}
 .reply-meta{font-size:11px;color:var(--hint);margin-bottom:4px;font-weight:500}
 .reply-compose{margin-top:1rem}
 .reply-compose textarea{font-family:'DM Sans',sans-serif;font-size:14px;padding:9px 12px;border:1.5px solid var(--border);border-radius:var(--rs);background:var(--surface);color:var(--text);width:100%;outline:none;min-height:80px;resize:vertical;line-height:1.7}
 .reply-compose textarea:focus{border-color:var(--blue-m);box-shadow:0 0 0 3px rgba(37,99,196,.12)}
 
-/* ── FILTER BAR ── */
+/* FILTER BAR */
 .filter-bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:1rem}
 .filter-bar input,.filter-bar select{font-family:'DM Sans',sans-serif;font-size:13px;padding:7px 12px;border:1.5px solid var(--border);border-radius:var(--rs);background:var(--surface);color:var(--text);outline:none;appearance:none}
 .filter-bar input:focus,.filter-bar select:focus{border-color:var(--blue-m)}
 .filter-bar select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236B6861' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;padding-right:30px}
 .filter-bar input[type=text]{min-width:200px}
-
-/* ── TRACK STATUS PAGE ── */
-.track-wrap{max-width:560px;margin:3rem auto}
-
-/* ── SUCCESS ── */
-.success-panel{text-align:center;padding:3rem 1.5rem}
-.success-circle{width:80px;height:80px;border-radius:50%;background:var(--green-l);border:2px solid var(--green);display:flex;align-items:center;justify-content:center;font-size:38px;margin:0 auto 1.25rem}
-.success-panel h2{font-size:22px;font-weight:600;color:var(--green);margin-bottom:6px}
-.success-panel p{color:var(--muted);font-size:14px}
-.ref-chip{display:inline-block;background:var(--blue-l);border:1.5px solid #BFCFE8;border-radius:var(--rs);padding:10px 24px;font-size:18px;font-weight:700;color:var(--blue);letter-spacing:.06em;margin:1.25rem auto}
-
-/* ── REVIEW TABLE ── */
-.review-table{width:100%;border-collapse:collapse}
-.review-table tr{border-bottom:1px solid var(--border)}
-.review-table tr:last-child{border-bottom:none}
-.review-table td{padding:10px 6px;font-size:14px;vertical-align:top}
-.review-table .rlabel{color:var(--muted);font-size:13px;width:36%;white-space:nowrap}
-.review-table .rval{color:var(--text);font-weight:500}
-
-.footer{text-align:center;font-size:12px;color:var(--hint);margin-top:3rem;padding-top:1.5rem;border-top:1px solid var(--border)}
-.hidden{display:none!important}
-.text-center{text-align:center}
-.empty-state{text-align:center;padding:3rem 1rem;color:var(--hint)}
-.empty-state .ei{font-size:40px;margin-bottom:8px}
 
 /* TABS */
 .tabs{display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:1.25rem}
@@ -246,9 +305,41 @@ table.ctbl tr:hover td{background:#FAFAF8}
 .tab.active{color:var(--blue);border-bottom-color:var(--blue);font-weight:600}
 
 /* PRIORITY */
-.priority-high{color:var(--red);font-size:12px;font-weight:600}
-.priority-med{color:var(--orange);font-size:12px;font-weight:600}
-.priority-low{color:var(--green);font-size:12px;font-weight:600}
+.priority-urgent{color:var(--red);font-size:12px;font-weight:700}
+.priority-high{color:var(--orange);font-size:12px;font-weight:600}
+.priority-normal{color:var(--green);font-size:12px;font-weight:500}
+
+/* SUCCESS */
+.success-panel{text-align:center;padding:3rem 1.5rem}
+.success-circle{width:80px;height:80px;border-radius:50%;background:var(--green-l);border:2px solid var(--green);display:flex;align-items:center;justify-content:center;font-size:38px;margin:0 auto 1.25rem}
+.success-panel h2{font-size:22px;font-weight:600;color:var(--green);margin-bottom:6px}
+.ref-chip{display:inline-block;background:var(--blue-l);border:1.5px solid #BFCFE8;border-radius:var(--rs);padding:10px 24px;font-size:18px;font-weight:700;color:var(--blue);letter-spacing:.06em;margin:1.25rem auto}
+
+/* REVIEW TABLE */
+.review-table{width:100%;border-collapse:collapse}
+.review-table tr{border-bottom:1px solid var(--border)}
+.review-table tr:last-child{border-bottom:none}
+.review-table td{padding:10px 6px;font-size:14px;vertical-align:top}
+.review-table .rlabel{color:var(--muted);font-size:13px;width:36%;white-space:nowrap}
+.review-table .rval{color:var(--text);font-weight:500}
+
+/* SPINNER */
+.spinner{display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.spinner-dark{border-color:rgba(0,0,0,.15);border-top-color:var(--blue)}
+
+/* LOADING OVERLAY */
+.loading-overlay{position:fixed;inset:0;background:rgba(255,255,255,.85);z-index:999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;font-size:15px;color:var(--muted)}
+.loading-overlay.hidden{display:none}
+
+.footer{text-align:center;font-size:12px;color:var(--hint);margin-top:3rem;padding-top:1.5rem;border-top:1px solid var(--border)}
+.hidden{display:none!important}
+.empty-state{text-align:center;padding:3rem 1rem;color:var(--hint)}
+.empty-state .ei{font-size:40px;margin-bottom:8px}
+
+/* FILE LINK */
+a.file-link{color:var(--blue-m);text-decoration:none;font-size:13px;display:inline-flex;align-items:center;gap:4px}
+a.file-link:hover{text-decoration:underline}
 
 @media(max-width:580px){
   .grid2,.grid3{grid-template-columns:1fr}
@@ -263,8 +354,14 @@ table.ctbl tr:hover td{background:#FAFAF8}
 </head>
 <body>
 
+<!-- LOADING OVERLAY -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="spinner spinner-dark" style="width:32px;height:32px;border-width:3px"></div>
+  <span id="loadingMsg">Loading...</span>
+</div>
+
 <!-- NAVBAR -->
-<nav class="navbar" id="navbar">
+<nav class="navbar">
   <div class="navbar-logo">🏛️</div>
   <div class="navbar-title">District Collector Office · Kolhapur</div>
   <div class="navbar-role hidden" id="navRole">
@@ -273,38 +370,41 @@ table.ctbl tr:hover td{background:#FAFAF8}
   <button class="navbar-logout hidden" id="navLogout" onclick="logout()">Sign Out</button>
 </nav>
 
-<!-- ═══════════════════════════════════════════
-     LOGIN PAGE
-═══════════════════════════════════════════ -->
+<!-- ═══════════ LOGIN PAGE ═══════════ -->
 <div class="page active" id="pgLogin">
   <div class="login-wrap">
     <div class="login-card">
       <h2>🏛️ Lokshahi Din Arj</h2>
-      <p>लोकशाही दिन अर्ज · Grievance Portal · Select your role to continue</p>
+      <p>लोकशाही दिन अर्ज · District Grievance Portal · Select your role</p>
+
+      <div class="fb-banner" id="fbBanner">
+        ⚠️ Firebase not configured yet. Please paste your Firebase config in the &lt;script&gt; block at the top of this file. See the setup guide (SETUP.md) for instructions.
+      </div>
+
       <div class="role-tabs">
         <div class="role-tab active" onclick="setLoginRole('user',this)"><span class="rt-icon">👤</span>Citizen</div>
         <div class="role-tab" onclick="setLoginRole('subadmin',this)"><span class="rt-icon">🏢</span>Department</div>
         <div class="role-tab" onclick="setLoginRole('admin',this)"><span class="rt-icon">⚖️</span>Collector</div>
       </div>
 
-      <!-- User login -->
+      <!-- User -->
       <div id="loginUser">
-        <div class="field"><label>Mobile Number</label><input type="tel" id="uMobile" placeholder="Enter your 10-digit mobile" maxlength="10"/></div>
-        <div class="field"><label>Password</label><input type="password" id="uPass" placeholder="Enter password" /></div>
+        <div class="field"><label>Mobile Number</label><input type="tel" id="uMobile" placeholder="10-digit mobile" maxlength="10"/></div>
+        <div class="field"><label>Password</label><input type="password" id="uPass" placeholder="Password"/></div>
         <div class="btn-row" style="justify-content:space-between;align-items:center">
-          <a href="#" style="font-size:13px;color:var(--blue-m)" onclick="showRegister()">New user? Register →</a>
+          <a href="#" style="font-size:13px;color:var(--blue-m)" onclick="showPage('pgRegister')">New user? Register →</a>
           <button class="btn btn-primary" onclick="loginUser()">Login</button>
         </div>
-        <div style="text-align:center;margin-top:1rem;font-size:12px;color:var(--hint)">Demo: mobile <b>9999999999</b> / pass <b>user123</b></div>
+        <div style="text-align:center;margin-top:1rem;font-size:12px;color:var(--hint)">Demo: <b>9999999999</b> / <b>user123</b></div>
       </div>
 
-      <!-- Sub-admin login -->
+      <!-- Sub-admin -->
       <div id="loginSubadmin" class="hidden">
         <div class="field"><label>Department</label>
           <select id="sadept">
             <option value="">Select your department</option>
             <option value="Revenue Department · महसूल विभाग">Revenue Department</option>
-            <option value="Public Works Dept · सार्वजनिक बांधकाम">Public Works Dept (PWD)</option>
+            <option value="Public Works Dept · सार्वजनिक बांधकाम">Public Works Dept</option>
             <option value="Agriculture · कृषी विभाग">Agriculture</option>
             <option value="Education · शिक्षण विभाग">Education</option>
             <option value="Health · आरोग्य विभाग">Health</option>
@@ -319,23 +419,21 @@ table.ctbl tr:hover td{background:#FAFAF8}
         </div>
         <div class="field"><label>Password</label><input type="password" id="saPass" placeholder="Department password"/></div>
         <div class="btn-row"><button class="btn btn-primary" onclick="loginSubadmin()">Login as Department Head</button></div>
-        <div style="text-align:center;margin-top:1rem;font-size:12px;color:var(--hint)">Demo: select any dept / pass <b>dept123</b></div>
+        <div style="text-align:center;margin-top:1rem;font-size:12px;color:var(--hint)">Demo: any dept / <b>dept123</b></div>
       </div>
 
-      <!-- Admin login -->
+      <!-- Admin -->
       <div id="loginAdmin" class="hidden">
-        <div class="field"><label>Collector ID</label><input type="text" id="adminUser" placeholder="Enter collector ID"/></div>
-        <div class="field"><label>Password</label><input type="password" id="adminPass" placeholder="Enter password"/></div>
+        <div class="field"><label>Collector ID</label><input type="text" id="adminUser" placeholder="Collector ID"/></div>
+        <div class="field"><label>Password</label><input type="password" id="adminPass" placeholder="Password"/></div>
         <div class="btn-row"><button class="btn btn-primary" onclick="loginAdmin()">Login as Collector</button></div>
-        <div style="text-align:center;margin-top:1rem;font-size:12px;color:var(--hint)">Demo: ID <b>collector</b> / pass <b>admin123</b></div>
+        <div style="text-align:center;margin-top:1rem;font-size:12px;color:var(--hint)">Demo: <b>collector</b> / <b>admin123</b></div>
       </div>
     </div>
   </div>
 </div>
 
-<!-- ═══════════════════════════════════════════
-     REGISTER PAGE
-═══════════════════════════════════════════ -->
+<!-- ═══════════ REGISTER ═══════════ -->
 <div class="page" id="pgRegister">
   <div class="container" style="max-width:520px">
     <div style="padding:1.5rem 0 1rem;display:flex;align-items:center;gap:12px">
@@ -348,7 +446,7 @@ table.ctbl tr:hover td{background:#FAFAF8}
         <div class="field"><label>Full Name (English)<span class="req">*</span></label><input type="text" id="regName" placeholder="Ramesh Patil"/></div>
         <div class="field"><label>पूर्ण नाव<span class="req">*</span></label><input type="text" id="regNameMr" placeholder="रमेश पाटील"/></div>
       </div>
-      <div class="field"><label>Mobile Number<span class="req">*</span></label><input type="tel" id="regMobile" placeholder="10-digit mobile" maxlength="10"/></div>
+      <div class="field"><label>Mobile Number<span class="req">*</span></label><input type="tel" id="regMobile" placeholder="10-digit" maxlength="10"/></div>
       <div class="field"><label>Email (optional)</label><input type="email" id="regEmail" placeholder="Optional"/></div>
       <div class="field"><label>Password<span class="req">*</span></label><input type="password" id="regPass" placeholder="Min 6 characters"/></div>
       <div class="field"><label>Confirm Password<span class="req">*</span></label><input type="password" id="regPass2" placeholder="Re-enter password"/></div>
@@ -357,32 +455,31 @@ table.ctbl tr:hover td{background:#FAFAF8}
   </div>
 </div>
 
-<!-- ═══════════════════════════════════════════
-     USER PORTAL
-═══════════════════════════════════════════ -->
+<!-- ═══════════ USER PORTAL ═══════════ -->
 <div class="page" id="pgUser">
   <div class="container">
-    <!-- Tabs -->
     <div style="padding:1.5rem 0 0">
       <div class="tabs">
         <div class="tab active" onclick="userTab('tabForm',this)">📝 Submit Complaint</div>
-        <div class="tab" onclick="userTab('tabTrack',this)">🔍 Track My Complaints</div>
+        <div class="tab" onclick="userTab('tabTrack',this)">🔍 Track Complaints</div>
       </div>
     </div>
 
-    <!-- SUBMIT FORM TAB -->
+    <!-- SUBMIT FORM -->
     <div id="tabForm">
       <div class="header-card">
         <div class="header-seal">⚖️</div>
         <div class="header-text">
           <h1>Lokshahi Din Arj <span>· लोकशाही दिन अर्ज</span></h1>
-          <p>Submit your grievance to the District Collector · जिल्हाधिकारी कार्यालय</p>
-          <div class="badges"><span class="badge badge-blue">Kolhapur District</span><span class="badge badge-green">Online</span></div>
+          <p>Submit your grievance to the District Collector · जिल्हाधिकारी कार्यालय, कोल्हापूर</p>
+          <div class="badges">
+            <span class="badge badge-blue">Kolhapur District</span>
+            <span class="badge badge-live">🔥 Live · Firebase</span>
+          </div>
         </div>
       </div>
 
-      <!-- STEPPER -->
-      <div class="stepper" id="stepper">
+      <div class="stepper">
         <div class="step active" id="s1"><div class="step-circle">1</div><div class="step-info"><span class="step-num-label">Step 1</span><span class="step-name">Personal</span></div></div>
         <div class="step-connector" id="l1"></div>
         <div class="step idle" id="s2"><div class="step-circle">2</div><div class="step-info"><span class="step-num-label">Step 2</span><span class="step-name">Grievance</span></div></div>
@@ -392,13 +489,13 @@ table.ctbl tr:hover td{background:#FAFAF8}
         <div class="step idle" id="s4"><div class="step-circle">4</div><div class="step-info"><span class="step-num-label">Step 4</span><span class="step-name">Review</span></div></div>
       </div>
 
-      <!-- PAGE 1 -->
+      <!-- Step 1 -->
       <div id="fp1">
         <div class="card">
-          <div class="section-label">👤 <span>Applicant Information · अर्जदाराची माहिती</span></div>
+          <div class="section-label">👤 <span>Applicant Information</span></div>
           <div class="grid2">
-            <div class="field"><label>Full Name (English)<span class="req">*</span></label><input type="text" id="f_name_en" placeholder="e.g. Ramesh Patil"/></div>
-            <div class="field"><label>पूर्ण नाव (मराठी)<span class="req">*</span></label><input type="text" id="f_name_mr" placeholder="उदा. रमेश पाटील"/></div>
+            <div class="field"><label>Full Name (English)<span class="req">*</span></label><input type="text" id="f_name_en" placeholder="Ramesh Patil"/></div>
+            <div class="field"><label>पूर्ण नाव (मराठी)<span class="req">*</span></label><input type="text" id="f_name_mr" placeholder="रमेश पाटील"/></div>
           </div>
           <div class="grid2">
             <div class="field"><label>Date of Birth<span class="req">*</span></label><input type="date" id="f_dob"/></div>
@@ -431,11 +528,11 @@ table.ctbl tr:hover td{background:#FAFAF8}
         <div class="btn-row"><button class="btn btn-primary" onclick="fGoTo(2)">Next: Grievance →</button></div>
       </div>
 
-      <!-- PAGE 2 -->
+      <!-- Step 2 -->
       <div id="fp2" class="hidden">
-        <div class="info-banner">ℹ️ Describe your grievance clearly. Vague applications may be returned for clarification.</div>
+        <div class="info-banner">ℹ️ Describe your grievance clearly. All data will be stored securely in Firebase.</div>
         <div class="card">
-          <div class="section-label">📋 <span>Grievance Details · तक्रारीचा तपशील</span></div>
+          <div class="section-label">📋 <span>Grievance Details</span></div>
           <div class="grid2">
             <div class="field"><label>Department<span class="req">*</span></label>
               <select id="f_dept">
@@ -457,11 +554,13 @@ table.ctbl tr:hover td{background:#FAFAF8}
             </div>
             <div class="field"><label>Category<span class="req">*</span></label>
               <select id="f_category">
-                <option value="">Select Category</option>
-                <option>Land Record / 7/12</option><option>Caste Certificate</option><option>Income Certificate</option>
-                <option>Domicile Certificate</option><option>Pension</option><option>Road / Drainage</option>
-                <option>Ration Card</option><option>Encroachment</option><option>Water / Electricity Supply</option>
-                <option>Scholarship</option><option>Employment / MGNREGA</option><option>Other</option>
+                <option value="">Select</option>
+                <option>Land Record / 7/12</option><option>Caste Certificate</option>
+                <option>Income Certificate</option><option>Domicile Certificate</option>
+                <option>Pension</option><option>Road / Drainage</option>
+                <option>Ration Card</option><option>Encroachment</option>
+                <option>Water / Electricity Supply</option><option>Scholarship</option>
+                <option>Employment / MGNREGA</option><option>Other</option>
               </select>
             </div>
           </div>
@@ -484,11 +583,11 @@ table.ctbl tr:hover td{background:#FAFAF8}
         <div class="btn-row"><button class="btn" onclick="fGoTo(1)">← Back</button><button class="btn btn-primary" onclick="fGoTo(3)">Next: Documents →</button></div>
       </div>
 
-      <!-- PAGE 3 -->
+      <!-- Step 3 -->
       <div id="fp3" class="hidden">
         <div class="card">
-          <div class="section-label">📁 <span>Supporting Documents · सहायक दस्तऐवज</span></div>
-          <p style="font-size:13px;color:var(--muted);margin-bottom:1rem">Upload relevant documents. Max 5 files, 5MB each.</p>
+          <div class="section-label">📁 <span>Supporting Documents</span></div>
+          <div class="info-banner">🔥 Files will be uploaded to Firebase Storage under <code>complaints/{Department}/{RefNo}/</code></div>
           <div class="upload-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
             <div style="font-size:32px;margin-bottom:8px">📎</div>
             <p><span class="upload-link">Click to upload</span> or drag & drop</p>
@@ -503,7 +602,7 @@ table.ctbl tr:hover td{background:#FAFAF8}
             <label class="decl-label">
               <input type="checkbox" id="decl"/>
               <div>
-                <div class="decl-text">I declare that all information in this application is true and correct to the best of my knowledge. False information may result in rejection and legal action.</div>
+                <div class="decl-text">I declare all information in this application is true and correct. False information may result in rejection and legal action.</div>
                 <div class="decl-mr">मी घोषित करतो की या अर्जात दिलेली सर्व माहिती सत्य आणि बरोबर आहे.</div>
               </div>
             </label>
@@ -512,27 +611,27 @@ table.ctbl tr:hover td{background:#FAFAF8}
         <div class="btn-row"><button class="btn" onclick="fGoTo(2)">← Back</button><button class="btn btn-primary" onclick="fGoTo(4)">Review & Submit →</button></div>
       </div>
 
-      <!-- PAGE 4 -->
+      <!-- Step 4 -->
       <div id="fp4" class="hidden">
-        <div class="warn-banner">⚠️ Review all details carefully before submitting. Changes cannot be made after submission.</div>
+        <div class="warn-banner">⚠️ Review carefully before submitting. This will be saved permanently to Firebase.</div>
         <div class="card">
           <div class="section-label">🔍 <span>Review Your Application</span></div>
           <div id="review_content"></div>
         </div>
         <div class="btn-row">
           <button class="btn btn-red" onclick="fGoTo(1)">✎ Edit</button>
-          <button class="btn btn-primary" onclick="submitComplaint()">✓ Submit Application</button>
+          <button class="btn btn-primary" id="submitBtn" onclick="submitComplaint()">✓ Submit to Firebase</button>
         </div>
       </div>
 
-      <!-- SUCCESS -->
+      <!-- Success -->
       <div id="fpSuccess" class="hidden card">
         <div class="success-panel">
           <div class="success-circle">✓</div>
-          <h2>Application Submitted!</h2>
-          <p>अर्ज यशस्वीरित्या सादर केला गेला</p>
+          <h2>Submitted to Firebase!</h2>
+          <p>Your complaint is now live in the database. Department heads can see it immediately.</p>
           <div class="ref-chip" id="refNum"></div>
-          <p style="font-size:13px;color:var(--muted);max-width:380px;margin:8px auto">Save this reference number to track your complaint. You will be contacted within 7 working days.</p>
+          <p style="font-size:13px;color:var(--muted);max-width:380px;margin:8px auto">Save this reference number to track your complaint status.</p>
           <div class="btn-row" style="justify-content:center;margin-top:1.5rem">
             <button class="btn" onclick="window.print()">🖨️ Print</button>
             <button class="btn btn-primary" onclick="resetForm()">+ New Complaint</button>
@@ -543,102 +642,76 @@ table.ctbl tr:hover td{background:#FAFAF8}
 
     <!-- TRACK TAB -->
     <div id="tabTrack" class="hidden">
-      <div class="track-wrap">
+      <div style="max-width:560px;margin:0 auto">
         <div class="card">
-          <div class="section-label">🔍 <span>Track Your Complaint</span></div>
-          <div class="field"><label>Enter Reference Number</label><input type="text" id="trackRef" placeholder="e.g. KLP/2025/12345"/></div>
+          <div class="section-label">🔍 <span>Track by Reference Number</span></div>
+          <div class="field"><label>Reference Number</label><input type="text" id="trackRef" placeholder="e.g. KLP/2025/12345"/></div>
           <div class="btn-row" style="justify-content:flex-start"><button class="btn btn-primary" onclick="trackComplaint()">Track →</button></div>
         </div>
         <div id="trackResult"></div>
       </div>
-
-      <div id="myComplaintsSection">
-        <h3 style="font-size:16px;font-weight:600;margin-bottom:1rem">My Submitted Complaints</h3>
-        <div id="myComplaints"></div>
-      </div>
+      <h3 style="font-size:16px;font-weight:600;margin:1.5rem 0 1rem">My Submitted Complaints</h3>
+      <div id="myComplaints"></div>
     </div>
 
-    <div class="footer">District Collector Office, Kolhapur · Maharashtra Government · Helpline: 0231-2650800</div>
+    <div class="footer">District Collector Office, Kolhapur · Powered by Firebase · Helpline: 0231-2650800</div>
   </div>
 </div>
 
-<!-- ═══════════════════════════════════════════
-     ADMIN (COLLECTOR) DASHBOARD
-═══════════════════════════════════════════ -->
+<!-- ═══════════ ADMIN DASHBOARD ═══════════ -->
 <div class="page" id="pgAdmin">
   <div class="container wide">
     <div class="dash-header">
-      <div>
-        <h2>⚖️ Collector Dashboard</h2>
-        <p>Kolhapur District · All Departments · Full Control</p>
-      </div>
-      <div style="display:flex;gap:8px">
-        <button class="btn btn-sm" onclick="renderAdminDash()">↻ Refresh</button>
-      </div>
+      <div><h2>⚖️ Collector Dashboard</h2><p>All Departments · Real-time Firebase data <span class="badge badge-live" style="margin-left:6px">🔥 Live</span></p></div>
+      <button class="btn btn-sm" onclick="renderAdminDash()">↻ Refresh</button>
     </div>
-
-    <!-- Stats -->
     <div class="stat-grid" id="adminStats"></div>
-
-    <!-- Tabs -->
     <div class="tabs">
       <div class="tab active" onclick="adminTab('aTabAll',this)">All Complaints</div>
-      <div class="tab" onclick="adminTab('aTabFolders',this)">📁 By Department</div>
+      <div class="tab" onclick="adminTab('aTabFolders',this)">📁 Department Folders</div>
     </div>
-
     <div id="aTabAll">
       <div class="filter-bar">
-        <input type="text" id="aSearchQ" placeholder="Search by name, ref, subject..." oninput="renderAdminTable()"/>
-        <select id="aFilterDept" onchange="renderAdminTable()"><option value="">All Departments</option></select>
-        <select id="aFilterStatus" onchange="renderAdminTable()">
+        <input type="text" id="aSearchQ" placeholder="Search name, ref, subject..." oninput="filterAdminTable()"/>
+        <select id="aFilterDept" onchange="filterAdminTable()"><option value="">All Departments</option></select>
+        <select id="aFilterStatus" onchange="filterAdminTable()">
           <option value="">All Statuses</option>
           <option>Pending</option><option>Open</option><option>In Progress</option><option>Resolved</option><option>Rejected</option>
         </select>
-        <select id="aFilterPriority" onchange="renderAdminTable()">
+        <select id="aFilterPriority" onchange="filterAdminTable()">
           <option value="">All Priorities</option><option>Urgent</option><option>High</option><option>Normal</option>
         </select>
       </div>
       <div class="card" style="padding:0">
         <div class="tbl-wrap">
-          <table class="ctbl" id="adminTable">
-            <thead><tr>
-              <th>Ref No.</th><th>Applicant</th><th>Department</th><th>Subject</th><th>Priority</th><th>Status</th><th>Submitted</th><th>Action</th>
-            </tr></thead>
+          <table class="ctbl">
+            <thead><tr><th>Ref No.</th><th>Applicant</th><th>Department</th><th>Subject</th><th>Priority</th><th>Status</th><th>Submitted</th><th>Action</th></tr></thead>
             <tbody id="adminTbody"></tbody>
           </table>
         </div>
       </div>
     </div>
-
     <div id="aTabFolders" class="hidden">
       <div class="folder-grid" id="adminFolders"></div>
     </div>
   </div>
 </div>
 
-<!-- ═══════════════════════════════════════════
-     SUB-ADMIN (DEPARTMENT HEAD) DASHBOARD
-═══════════════════════════════════════════ -->
+<!-- ═══════════ SUB-ADMIN DASHBOARD ═══════════ -->
 <div class="page" id="pgSubAdmin">
   <div class="container">
     <div class="dash-header">
-      <div>
-        <h2 id="saTitle">🏢 Department Dashboard</h2>
-        <p id="saSubtitle">Manage complaints assigned to your department</p>
-      </div>
+      <div><h2 id="saTitle">🏢 Department Dashboard</h2><p id="saSubtitle">Real-time complaints for your department</p></div>
       <button class="btn btn-sm" onclick="renderSubAdminDash()">↻ Refresh</button>
     </div>
-
     <div class="stat-grid" id="saStats"></div>
-
     <div class="filter-bar">
-      <input type="text" id="saSearchQ" placeholder="Search complaints..." oninput="renderSubAdminTable()"/>
-      <select id="saFilterStatus" onchange="renderSubAdminTable()">
+      <input type="text" id="saSearchQ" placeholder="Search complaints..." oninput="filterSATable()"/>
+      <select id="saFilterStatus" onchange="filterSATable()">
         <option value="">All Statuses</option>
         <option>Pending</option><option>Open</option><option>In Progress</option><option>Resolved</option><option>Rejected</option>
       </select>
     </div>
-
     <div class="card" style="padding:0">
       <div class="tbl-wrap">
         <table class="ctbl">
@@ -650,11 +723,9 @@ table.ctbl tr:hover td{background:#FAFAF8}
   </div>
 </div>
 
-<!-- ═══════════════════════════════════════════
-     COMPLAINT DETAIL MODAL
-═══════════════════════════════════════════ -->
+<!-- ═══════════ MODAL ═══════════ -->
 <div class="modal-overlay hidden" id="modalOverlay" onclick="closeModalOutside(event)">
-  <div class="modal" id="modal">
+  <div class="modal">
     <div class="modal-header">
       <h3 id="modalTitle">Complaint Detail</h3>
       <button class="modal-close" onclick="closeModal()">✕</button>
@@ -665,76 +736,91 @@ table.ctbl tr:hover td{background:#FAFAF8}
 </div>
 
 <script>
-// ════════════════════════════════════════════
-//  DATA & CONSTANTS
-// ════════════════════════════════════════════
+// ════════════════════════════════════════
+//  CONSTANTS
+// ════════════════════════════════════════
 const DEPTS = [
-  'Revenue Department · महसूल विभाग',
-  'Public Works Dept · सार्वजनिक बांधकाम',
-  'Agriculture · कृषी विभाग',
-  'Education · शिक्षण विभाग',
-  'Health · आरोग्य विभाग',
-  'Social Welfare · समाज कल्याण',
-  'Water Supply · जलापुर्ती विभाग',
-  'Electricity · वीज विभाग',
-  'Police · पोलीस',
-  'Food & Civil Supplies · अन्न व नागरी पुरवठा',
-  'Forest Department · वन विभाग',
-  'Women & Child Development',
-  'Other · इतर'
+  'Revenue Department · महसूल विभाग','Public Works Dept · सार्वजनिक बांधकाम',
+  'Agriculture · कृषी विभाग','Education · शिक्षण विभाग','Health · आरोग्य विभाग',
+  'Social Welfare · समाज कल्याण','Water Supply · जलापुर्ती विभाग','Electricity · वीज विभाग',
+  'Police · पोलीस','Food & Civil Supplies · अन्न व नागरी पुरवठा',
+  'Forest Department · वन विभाग','Women & Child Development','Other · इतर'
 ];
 const DEPT_ICONS = {
-  'Revenue': '📜','Public Works': '🏗️','Agriculture': '🌾','Education': '📚',
-  'Health': '🏥','Social Welfare': '🤝','Water Supply': '💧','Electricity': '⚡',
-  'Police': '🚔','Food': '🌾','Forest': '🌳','Women': '👩','Other': '📂'
+  'Revenue':'📜','Public Works':'🏗️','Agriculture':'🌾','Education':'📚',
+  'Health':'🏥','Social Welfare':'🤝','Water Supply':'💧','Electricity':'⚡',
+  'Police':'🚔','Food':'🌾','Forest':'🌳','Women':'👩','Other':'📂'
 };
+function getDeptIcon(d){for(const[k,v] of Object.entries(DEPT_ICONS))if(d.includes(k))return v;return'📁';}
 
-function getDeptIcon(dept){
-  for(const[k,v] of Object.entries(DEPT_ICONS)) if(dept.includes(k)) return v;
-  return '📁';
-}
+// ════════════════════════════════════════
+//  STATE
+// ════════════════════════════════════════
+let currentUser = null;
+let uploadedFiles = [];
+let editingComplaintId = null;
+let allAdminComplaints = [];  // cached for client-side filter
+let allSAComplaints = [];
+let unsubscribeListener = null;
 
-function getData(key,def=[]){try{return JSON.parse(localStorage.getItem(key)||JSON.stringify(def))}catch{return def}}
-function setData(key,val){localStorage.setItem(key,JSON.stringify(val))}
+// localStorage fallback for user accounts only (not complaints)
+function getUsers(){try{return JSON.parse(localStorage.getItem('lda_users')||'[]')}catch{return[]}}
+function saveUsers(u){localStorage.setItem('lda_users',JSON.stringify(u))}
 
 // Seed demo user
-(function(){
-  let users = getData('lda_users',[]);
+(()=>{
+  const users=getUsers();
   if(!users.find(u=>u.mobile==='9999999999')){
     users.push({mobile:'9999999999',pass:'user123',name:'Demo Citizen',nameMr:'डेमो नागरिक',email:''});
-    setData('lda_users',users);
+    saveUsers(users);
   }
 })();
 
-let currentUser = null; // {role:'user'|'subadmin'|'admin', dept?:, name:, mobile?:}
-let uploadedFiles = [];
-let editingComplaintId = null;
+// ════════════════════════════════════════
+//  LOADING
+// ════════════════════════════════════════
+function showLoading(msg='Loading...'){
+  document.getElementById('loadingMsg').textContent=msg;
+  document.getElementById('loadingOverlay').classList.remove('hidden');
+}
+function hideLoading(){document.getElementById('loadingOverlay').classList.add('hidden');}
 
-// ════════════════════════════════════════════
+// ════════════════════════════════════════
+//  FIREBASE CHECK
+// ════════════════════════════════════════
+window.addEventListener('load',()=>{
+  setTimeout(()=>{
+    if(!window._fbReady){
+      document.getElementById('fbBanner').classList.add('show');
+    }
+    hideLoading();
+  },1500);
+});
+
+// ════════════════════════════════════════
 //  NAVIGATION
-// ════════════════════════════════════════════
+// ════════════════════════════════════════
 function showPage(id){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.getElementById(id).classList.add('active');
 }
-
 function logout(){
+  if(unsubscribeListener){unsubscribeListener();unsubscribeListener=null;}
   currentUser=null;
   document.getElementById('navRole').classList.add('hidden');
   document.getElementById('navLogout').classList.add('hidden');
   showPage('pgLogin');
 }
-
 function setNavRole(label){
-  document.getElementById('navRoleText').textContent = label;
+  document.getElementById('navRoleText').textContent=label;
   document.getElementById('navRole').classList.remove('hidden');
   document.getElementById('navLogout').classList.remove('hidden');
 }
 
-// ════════════════════════════════════════════
+// ════════════════════════════════════════
 //  LOGIN
-// ════════════════════════════════════════════
-function setLoginRole(role, el){
+// ════════════════════════════════════════
+function setLoginRole(role,el){
   document.querySelectorAll('.role-tab').forEach(t=>t.classList.remove('active'));
   el.classList.add('active');
   ['loginUser','loginSubadmin','loginAdmin'].forEach(id=>document.getElementById(id).classList.add('hidden'));
@@ -742,39 +828,36 @@ function setLoginRole(role, el){
 }
 
 function loginUser(){
-  const mob = document.getElementById('uMobile').value.trim();
-  const pass = document.getElementById('uPass').value;
-  const users = getData('lda_users',[]);
-  const u = users.find(u=>u.mobile===mob && u.pass===pass);
-  if(!u) return alert('Invalid mobile or password. Try 9999999999 / user123');
-  currentUser = {role:'user', mobile:mob, name:u.name, nameMr:u.nameMr};
+  const mob=document.getElementById('uMobile').value.trim();
+  const pass=document.getElementById('uPass').value;
+  const u=getUsers().find(u=>u.mobile===mob&&u.pass===pass);
+  if(!u) return alert('Invalid mobile or password.');
+  currentUser={role:'user',mobile:mob,name:u.name,nameMr:u.nameMr};
   setNavRole('Citizen · '+u.name);
-  renderUserDash();
   showPage('pgUser');
+  renderMyComplaints();
 }
 
 function loginSubadmin(){
-  const dept = document.getElementById('sadept').value;
-  const pass = document.getElementById('saPass').value;
-  if(!dept) return alert('Please select your department.');
-  if(pass !== 'dept123') return alert('Invalid password. Demo: dept123');
-  currentUser = {role:'subadmin', dept, name: dept.split('·')[0].trim()};
+  const dept=document.getElementById('sadept').value;
+  const pass=document.getElementById('saPass').value;
+  if(!dept) return alert('Please select department.');
+  if(pass!=='dept123') return alert('Invalid password. Demo: dept123');
+  currentUser={role:'subadmin',dept,name:dept.split('·')[0].trim()};
   setNavRole('Dept Head · '+currentUser.name);
-  renderSubAdminDash();
   showPage('pgSubAdmin');
+  renderSubAdminDash();
 }
 
 function loginAdmin(){
-  const u = document.getElementById('adminUser').value.trim();
-  const p = document.getElementById('adminPass').value;
-  if(u!=='collector'||p!=='admin123') return alert('Invalid credentials. Demo: collector / admin123');
-  currentUser = {role:'admin', name:'District Collector'};
+  const u=document.getElementById('adminUser').value.trim();
+  const p=document.getElementById('adminPass').value;
+  if(u!=='collector'||p!=='admin123') return alert('Invalid credentials.');
+  currentUser={role:'admin',name:'District Collector'};
   setNavRole('Collector · Admin');
-  renderAdminDash();
   showPage('pgAdmin');
+  renderAdminDash();
 }
-
-function showRegister(){ showPage('pgRegister'); }
 
 function doRegister(){
   const name=document.getElementById('regName').value.trim();
@@ -787,17 +870,17 @@ function doRegister(){
   if(!/^\d{10}$/.test(mob)) return alert('Mobile must be 10 digits.');
   if(pass.length<6) return alert('Password must be at least 6 characters.');
   if(pass!==pass2) return alert('Passwords do not match.');
-  const users = getData('lda_users',[]);
-  if(users.find(u=>u.mobile===mob)) return alert('Mobile already registered. Please login.');
+  const users=getUsers();
+  if(users.find(u=>u.mobile===mob)) return alert('Mobile already registered.');
   users.push({mobile:mob,pass,name,nameMr,email});
-  setData('lda_users',users);
+  saveUsers(users);
   alert('Registration successful! Please login.');
   showPage('pgLogin');
 }
 
-// ════════════════════════════════════════════
-//  USER TABS
-// ════════════════════════════════════════════
+// ════════════════════════════════════════
+//  COMPLAINT FORM
+// ════════════════════════════════════════
 function userTab(id,el){
   document.querySelectorAll('#pgUser .tab').forEach(t=>t.classList.remove('active'));
   el.classList.add('active');
@@ -807,35 +890,20 @@ function userTab(id,el){
   if(id==='tabTrack') renderMyComplaints();
 }
 
-// ════════════════════════════════════════════
-//  COMPLAINT FORM
-// ════════════════════════════════════════════
-let formStep = 1;
-
 function fGoTo(p){
   if(p===2&&!vPage1()) return;
   if(p===3&&!vPage2()) return;
   if(p===4&&!vPage3()) return;
   if(p===4) buildReview();
-  formStep=p;
-  for(let i=1;i<=4;i++){
-    const el=document.getElementById('fp'+i);
-    if(el) el.classList.toggle('hidden',i!==p);
-  }
+  for(let i=1;i<=4;i++){const e=document.getElementById('fp'+i);if(e)e.classList.toggle('hidden',i!==p);}
   document.getElementById('fpSuccess').classList.add('hidden');
   updateStepper(p);
   window.scrollTo({top:0,behavior:'smooth'});
 }
 
 function updateStepper(p){
-  for(let i=1;i<=4;i++){
-    const s=document.getElementById('s'+i);
-    if(s) s.className='step '+(i<p?'done':i===p?'active':'idle');
-  }
-  for(let i=1;i<=3;i++){
-    const l=document.getElementById('l'+i);
-    if(l) l.className='step-connector'+(i<p?' done':'');
-  }
+  for(let i=1;i<=4;i++){const s=document.getElementById('s'+i);if(s)s.className='step '+(i<p?'done':i===p?'active':'idle');}
+  for(let i=1;i<=3;i++){const l=document.getElementById('l'+i);if(l)l.className='step-connector'+(i<p?' done':'');}
 }
 
 function pickRadio(name,val,el){
@@ -846,22 +914,17 @@ function pickRadio(name,val,el){
 
 function togglePrev(val,el){
   document.querySelectorAll('input[name="firsttime"]').forEach(r=>r.checked=r.value===val);
-  document.querySelectorAll('.radio-opt').forEach(e=>{if(e.querySelector('input[name="firsttime"]'))e.classList.remove('sel')});
+  document.querySelectorAll('.radio-opt').forEach(e=>{if(e.querySelector('input[name="firsttime"]'))e.classList.remove('sel');});
   el.classList.add('sel');
   document.getElementById('prev_ref_wrap').classList.toggle('hidden',val==='yes');
 }
 
 function vPage1(){
   const checks=[
-    {id:'f_name_en',msg:'Full Name (English)'},
-    {id:'f_name_mr',msg:'Full Name (Marathi)'},
-    {id:'f_dob',msg:'Date of Birth'},
-    {id:'f_aadhar',msg:'Aadhar Number'},
-    {id:'f_mobile',msg:'Mobile Number'},
-    {id:'f_address',msg:'Address'},
-    {id:'f_taluka',msg:'Taluka'},
-    {id:'f_village',msg:'Village / City'},
-    {id:'f_pin',msg:'PIN Code'},
+    {id:'f_name_en',msg:'Full Name (English)'},{id:'f_name_mr',msg:'Full Name (Marathi)'},
+    {id:'f_dob',msg:'Date of Birth'},{id:'f_aadhar',msg:'Aadhar Number'},
+    {id:'f_mobile',msg:'Mobile'},{id:'f_address',msg:'Address'},
+    {id:'f_taluka',msg:'Taluka'},{id:'f_village',msg:'Village/City'},{id:'f_pin',msg:'PIN Code'},
   ];
   for(const c of checks){const el=document.getElementById(c.id);if(!el.value.trim()){el.focus();alert('Please fill: '+c.msg);return false;}}
   if(!document.querySelector('input[name="gender"]:checked')){alert('Please select Gender');return false;}
@@ -870,13 +933,11 @@ function vPage1(){
   if(!/^\d{6}$/.test(document.getElementById('f_pin').value)){alert('PIN must be 6 digits');return false;}
   return true;
 }
-
 function vPage2(){
   const checks=[{id:'f_dept',msg:'Department'},{id:'f_category',msg:'Category'},{id:'f_subject',msg:'Subject'},{id:'f_desc',msg:'Description'}];
   for(const c of checks){const el=document.getElementById(c.id);if(!el.value.trim()){el.focus();alert('Please fill: '+c.msg);return false;}}
   return true;
 }
-
 function vPage3(){
   if(!document.getElementById('decl').checked){alert('Please accept the declaration');return false;}
   return true;
@@ -898,7 +959,7 @@ function buildReview(){
     ['Subject',document.getElementById('f_subject').value],
     ['Description',document.getElementById('f_desc').value],
     ['Priority',document.getElementById('f_priority').value],
-    ['Documents',uploadedFiles.length?uploadedFiles.map(f=>f.name).join(', '):'None uploaded'],
+    ['Files',uploadedFiles.length?uploadedFiles.map(f=>f.name).join(', '):'None'],
   ];
   let html='<table class="review-table">';
   for(const[k,v] of rows) html+=`<tr><td class="rlabel">${k}</td><td class="rval">${v}</td></tr>`;
@@ -906,49 +967,76 @@ function buildReview(){
   document.getElementById('review_content').innerHTML=html;
 }
 
-function submitComplaint(){
+async function submitComplaint(){
+  if(!window._fbReady){
+    alert('Firebase is not configured yet. Please add your Firebase config to the file first. See SETUP.md for instructions.');
+    return;
+  }
   const gender=document.querySelector('input[name="gender"]:checked');
   const year=new Date().getFullYear();
   const num=String(Math.floor(10000+Math.random()*90000));
   const ref='KLP/'+year+'/'+num;
-  const complaint={
-    id:ref,ref,
-    name:document.getElementById('f_name_en').value,
-    nameMr:document.getElementById('f_name_mr').value,
-    mobile:document.getElementById('f_mobile').value,
-    email:document.getElementById('f_email').value,
-    aadhar:document.getElementById('f_aadhar').value.slice(-4),
-    dob:document.getElementById('f_dob').value,
-    gender:gender?gender.value:'',
-    address:[document.getElementById('f_address').value,document.getElementById('f_village').value,document.getElementById('f_taluka').value,document.getElementById('f_pin').value].join(', '),
-    dept:document.getElementById('f_dept').value,
-    category:document.getElementById('f_category').value,
-    subject:document.getElementById('f_subject').value,
-    desc:document.getElementById('f_desc').value,
-    grvDate:document.getElementById('f_grv_date').value,
-    priority:document.getElementById('f_priority').value,
-    files:uploadedFiles.map(f=>({name:f.name,size:f.size,type:f.type})),
-    status:'Pending',
-    submittedBy:currentUser.mobile,
-    submittedAt:new Date().toISOString(),
-    replies:[],
-  };
-  const complaints=getData('lda_complaints',[]);
-  complaints.unshift(complaint);
-  setData('lda_complaints',complaints);
-  document.getElementById('refNum').textContent=ref;
-  for(let i=1;i<=4;i++){const e=document.getElementById('fp'+i);if(e)e.classList.add('hidden');}
-  document.getElementById('fpSuccess').classList.remove('hidden');
-  window.scrollTo({top:0,behavior:'smooth'});
+  const dept=document.getElementById('f_dept').value;
+
+  const btn=document.getElementById('submitBtn');
+  btn.disabled=true;
+  btn.innerHTML='<span class="spinner"></span> Uploading...';
+
+  try {
+    // 1. Upload files to Firebase Storage
+    showLoading('Uploading documents...');
+    const fileRecords=[];
+    for(const file of uploadedFiles){
+      const rec = await window.fbUploadFile(file, dept, ref.replace(/\//g,'-'));
+      fileRecords.push(rec);
+    }
+
+    // 2. Save complaint to Firestore
+    showLoading('Saving complaint...');
+    const complaint={
+      ref,
+      name:document.getElementById('f_name_en').value,
+      nameMr:document.getElementById('f_name_mr').value,
+      mobile:document.getElementById('f_mobile').value,
+      email:document.getElementById('f_email').value,
+      aadharLast4:document.getElementById('f_aadhar').value.slice(-4),
+      dob:document.getElementById('f_dob').value,
+      gender:gender?gender.value:'',
+      address:[document.getElementById('f_address').value,document.getElementById('f_village').value,document.getElementById('f_taluka').value,document.getElementById('f_pin').value].join(', '),
+      taluka:document.getElementById('f_taluka').value,
+      dept,
+      category:document.getElementById('f_category').value,
+      subject:document.getElementById('f_subject').value,
+      desc:document.getElementById('f_desc').value,
+      grvDate:document.getElementById('f_grv_date').value,
+      priority:document.getElementById('f_priority').value,
+      files:fileRecords,
+      submittedBy:currentUser.mobile,
+    };
+
+    await window.fbAddComplaint(complaint);
+    hideLoading();
+
+    document.getElementById('refNum').textContent=ref;
+    for(let i=1;i<=4;i++){const e=document.getElementById('fp'+i);if(e)e.classList.add('hidden');}
+    document.getElementById('fpSuccess').classList.remove('hidden');
+    window.scrollTo({top:0,behavior:'smooth'});
+  } catch(err){
+    hideLoading();
+    console.error(err);
+    alert('Error submitting: '+err.message+'\n\nMake sure Firebase config is correct and Firestore/Storage rules are set.');
+  }
+  btn.disabled=false;
+  btn.innerHTML='✓ Submit to Firebase';
 }
 
 function resetForm(){
   uploadedFiles=[];
+  ['f_name_en','f_name_mr','f_dob','f_mobile','f_mobile2','f_email','f_aadhar','f_address','f_village','f_pin','f_subject','f_desc','f_grv_date'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['f_dept','f_category','f_taluka','f_priority'].forEach(id=>{const el=document.getElementById(id);if(el)el.selectedIndex=0;});
   document.getElementById('fileList').innerHTML='';
   document.getElementById('fileInput').value='';
   document.getElementById('decl').checked=false;
-  ['f_name_en','f_name_mr','f_dob','f_mobile','f_mobile2','f_email','f_aadhar','f_address','f_village','f_pin','f_subject','f_desc','f_grv_date'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
-  ['f_dept','f_category','f_taluka','f_priority'].forEach(id=>{const el=document.getElementById(id);if(el)el.selectedIndex=0;});
   document.getElementById('sc').textContent='0/120';
   document.getElementById('dc').textContent='0/1000';
   for(let i=1;i<=4;i++){const e=document.getElementById('fp'+i);if(e)e.classList.toggle('hidden',i!==1);}
@@ -956,20 +1044,19 @@ function resetForm(){
   updateStepper(1);
 }
 
-// ════════════════════════════════════════════
+// ════════════════════════════════════════
 //  FILE UPLOAD
-// ════════════════════════════════════════════
+// ════════════════════════════════════════
 function handleFiles(files){
   for(const f of files){
     if(uploadedFiles.length>=5){alert('Max 5 files');break;}
     if(f.size>5*1024*1024){alert(f.name+' exceeds 5MB');continue;}
     uploadedFiles.push(f);
   }
-  renderFiles();
+  renderFileList();
   document.getElementById('fileInput').value='';
 }
-
-function renderFiles(){
+function renderFileList(){
   const list=document.getElementById('fileList');
   list.innerHTML='';
   uploadedFiles.forEach((f,i)=>{
@@ -978,138 +1065,156 @@ function renderFiles(){
     list.innerHTML+=`<div class="file-item"><span class="file-ext">${ext}</span><span class="file-name">${f.name}</span><span class="file-size">${size}</span><button class="file-del" onclick="removeFile(${i})">✕</button></div>`;
   });
 }
-
-function removeFile(i){uploadedFiles.splice(i,1);renderFiles();}
-
+function removeFile(i){uploadedFiles.splice(i,1);renderFileList();}
 const dz=document.getElementById('dropZone');
-dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('dragover')});
+dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('dragover');});
 dz.addEventListener('dragleave',()=>dz.classList.remove('dragover'));
-dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('dragover');handleFiles(e.dataTransfer.files)});
+dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('dragover');handleFiles(e.dataTransfer.files);});
 
-// ════════════════════════════════════════════
-//  TRACK COMPLAINT (USER)
-// ════════════════════════════════════════════
-function renderUserDash(){ renderMyComplaints(); }
-
-function renderMyComplaints(){
-  const complaints=getData('lda_complaints',[]).filter(c=>c.submittedBy===currentUser.mobile);
-  const div=document.getElementById('myComplaints');
-  if(!complaints.length){div.innerHTML='<div class="empty-state"><div class="ei">📭</div>No complaints submitted yet.</div>';return;}
-  div.innerHTML=complaints.map(c=>`
-    <div class="card" style="margin-bottom:10px;cursor:pointer" onclick="openModal('${c.id}','user')">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap">
-        <div>
-          <div class="td-ref" style="font-size:14px;margin-bottom:4px">${c.ref}</div>
-          <div style="font-weight:500;font-size:15px">${c.subject}</div>
-          <div class="td-dept" style="margin-top:2px">${c.dept}</div>
+// ════════════════════════════════════════
+//  TRACK / MY COMPLAINTS (USER)
+// ════════════════════════════════════════
+async function renderMyComplaints(){
+  if(!window._fbReady){
+    document.getElementById('myComplaints').innerHTML='<div class="empty-state"><div class="ei">⚙️</div>Firebase not configured.</div>';
+    return;
+  }
+  showLoading('Loading your complaints...');
+  try{
+    const complaints=await window.fbGetComplaints({mobile:currentUser.mobile});
+    const div=document.getElementById('myComplaints');
+    if(!complaints.length){div.innerHTML='<div class="empty-state"><div class="ei">📭</div>No complaints yet.</div>';hideLoading();return;}
+    div.innerHTML=complaints.map(c=>`
+      <div class="card" style="cursor:pointer;margin-bottom:10px" onclick="openModal('${c.id}','user',${JSON.stringify(c).replace(/"/g,'&quot;')})">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap">
+          <div><div class="td-ref" style="font-size:14px;margin-bottom:4px">${c.ref}</div>
+            <div style="font-weight:500;font-size:15px">${c.subject}</div>
+            <div class="td-dept">${c.dept}</div></div>
+          <div style="text-align:right"><span class="${statusClass(c.status)}">${c.status}</span>
+            <div class="td-date" style="margin-top:4px">${fmtTs(c.submittedAt)}</div></div>
         </div>
-        <div style="text-align:right">
-          <span class="${statusClass(c.status)}">${c.status}</span>
-          <div class="td-date" style="margin-top:4px">${fmtDate(c.submittedAt)}</div>
-        </div>
-      </div>
-      ${c.replies&&c.replies.length?`<div style="margin-top:8px;font-size:12px;color:var(--blue);font-weight:500">💬 ${c.replies.length} response(s) — click to view</div>`:''}
-    </div>
-  `).join('');
+        ${c.replies&&c.replies.length?`<div style="margin-top:8px;font-size:12px;color:var(--blue);font-weight:500">💬 ${c.replies.length} response(s) — click to view</div>`:''}
+      </div>`).join('');
+  }catch(e){console.error(e);}
+  hideLoading();
 }
 
-function trackComplaint(){
+async function trackComplaint(){
   const ref=document.getElementById('trackRef').value.trim();
-  const c=getData('lda_complaints',[]).find(x=>x.ref===ref||x.id===ref);
-  const div=document.getElementById('trackResult');
-  if(!c){div.innerHTML='<div class="card"><p style="color:var(--red)">No complaint found with this reference number.</p></div>';return;}
-  div.innerHTML=`<div class="card">
-    <div class="section-label">📋 <span>Complaint Status</span></div>
-    <div class="detail-row"><span class="detail-label">Reference</span><span class="detail-val td-ref">${c.ref}</span></div>
-    <div class="detail-row"><span class="detail-label">Subject</span><span class="detail-val">${c.subject}</span></div>
-    <div class="detail-row"><span class="detail-label">Department</span><span class="detail-val">${c.dept}</span></div>
-    <div class="detail-row"><span class="detail-label">Status</span><span class="detail-val"><span class="${statusClass(c.status)}">${c.status}</span></span></div>
-    <div class="detail-row"><span class="detail-label">Submitted</span><span class="detail-val">${fmtDate(c.submittedAt)}</span></div>
-    ${c.replies&&c.replies.length?`<div style="margin-top:1rem"><div class="section-label">💬 <span>Responses</span></div>${c.replies.map(r=>`<div class="reply-item ${r.role==='admin'?'admin-reply':'dept-reply'}"><div class="reply-meta">${r.role==='admin'?'District Collector':'Dept. Head'} · ${fmtDate(r.at)}</div>${r.text}</div>`).join('')}</div>`:'<p style="font-size:13px;color:var(--muted);margin-top:8px">No responses yet. You will be notified once action is taken.</p>'}
-  </div>`;
+  if(!ref){alert('Enter a reference number');return;}
+  if(!window._fbReady){alert('Firebase not configured');return;}
+  showLoading('Searching...');
+  try{
+    const all=await window.fbGetComplaints({});
+    const c=all.find(x=>x.ref===ref);
+    const div=document.getElementById('trackResult');
+    if(!c){div.innerHTML='<div class="card"><p style="color:var(--red)">No complaint found with this reference number.</p></div>';hideLoading();return;}
+    div.innerHTML=`<div class="card">
+      <div class="section-label">📋 <span>Complaint Status</span></div>
+      <div class="detail-row"><span class="detail-label">Reference</span><span class="detail-val td-ref">${c.ref}</span></div>
+      <div class="detail-row"><span class="detail-label">Subject</span><span class="detail-val">${c.subject}</span></div>
+      <div class="detail-row"><span class="detail-label">Department</span><span class="detail-val">${c.dept}</span></div>
+      <div class="detail-row"><span class="detail-label">Status</span><span class="detail-val"><span class="${statusClass(c.status)}">${c.status}</span></span></div>
+      <div class="detail-row"><span class="detail-label">Submitted</span><span class="detail-val">${fmtTs(c.submittedAt)}</span></div>
+      ${c.replies&&c.replies.length?`<div style="margin-top:1rem"><div class="section-label">💬 <span>Responses</span></div>${c.replies.map(r=>`<div class="reply-item ${r.role==='admin'?'admin-reply':'dept-reply'}"><div class="reply-meta">${r.role==='admin'?'⚖️ District Collector':'🏢 Dept. Head'} · ${fmtTs(r.at)}</div>${r.text}</div>`).join('')}</div>`:'<p style="font-size:13px;color:var(--muted);margin-top:8px">No responses yet.</p>'}
+    </div>`;
+  }catch(e){console.error(e);}
+  hideLoading();
 }
 
-// ════════════════════════════════════════════
+// ════════════════════════════════════════
 //  ADMIN DASHBOARD
-// ════════════════════════════════════════════
-function renderAdminDash(){
-  const complaints=getData('lda_complaints',[]);
-  const stats={total:complaints.length,pending:0,open:0,inprog:0,resolved:0,rejected:0};
+// ════════════════════════════════════════
+async function renderAdminDash(){
+  if(!window._fbReady){
+    document.getElementById('adminTbody').innerHTML='<tr><td colspan="8"><div class="empty-state"><div class="ei">⚙️</div>Firebase not configured. Add your config to the HTML file.</div></td></tr>';
+    return;
+  }
+  showLoading('Loading all complaints...');
+  try{
+    allAdminComplaints=await window.fbGetComplaints({});
+    buildAdminStats(allAdminComplaints);
+    buildDeptFilter();
+    buildAdminFolders(allAdminComplaints);
+    filterAdminTable();
+  }catch(e){console.error(e);alert('Firebase error: '+e.message);}
+  hideLoading();
+}
+
+function buildAdminStats(complaints){
+  const s={total:complaints.length,pending:0,open:0,inprog:0,resolved:0,rejected:0};
   complaints.forEach(c=>{
-    if(c.status==='Pending')stats.pending++;
-    else if(c.status==='Open')stats.open++;
-    else if(c.status==='In Progress')stats.inprog++;
-    else if(c.status==='Resolved')stats.resolved++;
-    else if(c.status==='Rejected')stats.rejected++;
+    if(c.status==='Pending')s.pending++;
+    else if(c.status==='Open')s.open++;
+    else if(c.status==='In Progress')s.inprog++;
+    else if(c.status==='Resolved')s.resolved++;
+    else if(c.status==='Rejected')s.rejected++;
   });
   document.getElementById('adminStats').innerHTML=`
-    <div class="stat-card blue"><div class="val">${stats.total}</div><div class="lbl">Total Complaints</div></div>
-    <div class="stat-card orange"><div class="val">${stats.pending}</div><div class="lbl">Pending</div></div>
-    <div class="stat-card blue"><div class="val">${stats.open}</div><div class="lbl">Open</div></div>
-    <div class="stat-card purple"><div class="val">${stats.inprog}</div><div class="lbl">In Progress</div></div>
-    <div class="stat-card green"><div class="val">${stats.resolved}</div><div class="lbl">Resolved</div></div>
-    <div class="stat-card red"><div class="val">${stats.rejected}</div><div class="lbl">Rejected</div></div>
-  `;
-  // populate dept filter
-  const deptSel=document.getElementById('aFilterDept');
-  if(deptSel.options.length<=1){
-    DEPTS.forEach(d=>{const o=document.createElement('option');o.value=d;o.textContent=d.split('·')[0].trim();deptSel.appendChild(o);});
-  }
-  renderAdminTable();
-  renderAdminFolders();
+    <div class="stat-card blue"><div class="val">${s.total}</div><div class="lbl">Total</div></div>
+    <div class="stat-card orange"><div class="val">${s.pending}</div><div class="lbl">Pending</div></div>
+    <div class="stat-card blue"><div class="val">${s.open}</div><div class="lbl">Open</div></div>
+    <div class="stat-card purple"><div class="val">${s.inprog}</div><div class="lbl">In Progress</div></div>
+    <div class="stat-card green"><div class="val">${s.resolved}</div><div class="lbl">Resolved</div></div>
+    <div class="stat-card red"><div class="val">${s.rejected}</div><div class="lbl">Rejected</div></div>`;
 }
 
-function renderAdminTable(){
+function buildDeptFilter(){
+  const sel=document.getElementById('aFilterDept');
+  if(sel.options.length<=1){
+    DEPTS.forEach(d=>{const o=document.createElement('option');o.value=d;o.textContent=d.split('·')[0].trim();sel.appendChild(o);});
+  }
+}
+
+function filterAdminTable(){
   const q=document.getElementById('aSearchQ').value.toLowerCase();
   const dept=document.getElementById('aFilterDept').value;
   const status=document.getElementById('aFilterStatus').value;
   const priority=document.getElementById('aFilterPriority').value;
-  let complaints=getData('lda_complaints',[]);
-  if(q) complaints=complaints.filter(c=>c.ref.toLowerCase().includes(q)||c.name.toLowerCase().includes(q)||c.subject.toLowerCase().includes(q));
-  if(dept) complaints=complaints.filter(c=>c.dept===dept);
-  if(status) complaints=complaints.filter(c=>c.status===status);
-  if(priority) complaints=complaints.filter(c=>c.priority===priority);
+  let list=allAdminComplaints.filter(c=>{
+    if(q&&!c.ref.toLowerCase().includes(q)&&!c.name.toLowerCase().includes(q)&&!c.subject.toLowerCase().includes(q)) return false;
+    if(dept&&c.dept!==dept) return false;
+    if(status&&c.status!==status) return false;
+    if(priority&&c.priority!==priority) return false;
+    return true;
+  });
   const tbody=document.getElementById('adminTbody');
-  if(!complaints.length){tbody.innerHTML='<tr><td colspan="8"><div class="empty-state"><div class="ei">📭</div>No complaints found</div></td></tr>';return;}
-  tbody.innerHTML=complaints.map(c=>`
-    <tr>
-      <td><span class="td-ref">${c.ref}</span></td>
-      <td><div class="td-name">${c.name}</div><div class="td-dept">${c.mobile||''}</div></td>
-      <td><div style="font-size:12px">${getDeptIcon(c.dept)} ${c.dept.split('·')[0].trim()}</div></td>
-      <td><div style="max-width:200px;font-size:13px">${c.subject}</div></td>
-      <td><span class="${priorityClass(c.priority)}">${c.priority||'Normal'}</span></td>
-      <td><span class="${statusClass(c.status)}">${c.status}</span></td>
-      <td class="td-date">${fmtDate(c.submittedAt)}</td>
-      <td><button class="btn btn-sm btn-primary" onclick="openModal('${c.id}','admin')">View</button></td>
-    </tr>
-  `).join('');
+  if(!list.length){tbody.innerHTML='<tr><td colspan="8"><div class="empty-state"><div class="ei">📭</div>No complaints found</div></td></tr>';return;}
+  tbody.innerHTML=list.map(c=>`<tr>
+    <td><span class="td-ref">${c.ref}</span></td>
+    <td><div class="td-name">${c.name}</div><div class="td-dept">${c.mobile||''}</div></td>
+    <td><div style="font-size:12px">${getDeptIcon(c.dept)} ${c.dept.split('·')[0].trim()}</div></td>
+    <td style="max-width:180px;font-size:13px">${c.subject}</td>
+    <td><span class="${priorityClass(c.priority)}">${c.priority||'Normal'}</span></td>
+    <td><span class="${statusClass(c.status)}">${c.status}</span></td>
+    <td class="td-date">${fmtTs(c.submittedAt)}</td>
+    <td><button class="btn btn-sm btn-primary" onclick='openModal("${c.id}","admin",${JSON.stringify(c).replace(/'/g,"&#39;")})'>View</button></td>
+  </tr>`).join('');
 }
 
-function renderAdminFolders(){
-  const complaints=getData('lda_complaints',[]);
+function buildAdminFolders(complaints){
   const byDept={};
   DEPTS.forEach(d=>{byDept[d]={total:0,pending:0};});
   complaints.forEach(c=>{
-    if(!byDept[c.dept]) byDept[c.dept]={total:0,pending:0};
+    if(!byDept[c.dept])byDept[c.dept]={total:0,pending:0};
     byDept[c.dept].total++;
-    if(c.status==='Pending'||c.status==='Open') byDept[c.dept].pending++;
+    if(c.status==='Pending'||c.status==='Open')byDept[c.dept].pending++;
   });
   document.getElementById('adminFolders').innerHTML=Object.entries(byDept).map(([d,s])=>`
-    <div class="folder-card" onclick="filterAdminByDept('${d}')">
+    <div class="folder-card" onclick="filterByDept('${d}')">
       <div class="folder-icon">${getDeptIcon(d)}</div>
       <div class="folder-info">
         <div class="fname">${d.split('·')[0].trim()}</div>
         <div class="fcount">${s.total} complaint${s.total!==1?'s':''}</div>
-        ${s.pending>0?`<div class="fnew">${s.pending} pending</div>`:''}
+        ${s.pending>0?`<div class="fnew">${s.pending} pending</div>`:'<div style="font-size:11px;color:var(--green);font-weight:600">✓ All clear</div>'}
       </div>
-    </div>
-  `).join('');
+    </div>`).join('');
 }
 
-function filterAdminByDept(dept){
-  adminTab('aTabAll',document.querySelector('.tab'));
+function filterByDept(dept){
+  adminTab('aTabAll',document.querySelector('#pgAdmin .tab'));
   document.getElementById('aFilterDept').value=dept;
-  renderAdminTable();
+  filterAdminTable();
 }
 
 function adminTab(id,el){
@@ -1119,198 +1224,186 @@ function adminTab(id,el){
   document.getElementById(id).classList.remove('hidden');
 }
 
-// ════════════════════════════════════════════
+// ════════════════════════════════════════
 //  SUB-ADMIN DASHBOARD
-// ════════════════════════════════════════════
-function renderSubAdminDash(){
+// ════════════════════════════════════════
+async function renderSubAdminDash(){
+  if(!window._fbReady){
+    document.getElementById('saTbody').innerHTML='<tr><td colspan="8"><div class="empty-state"><div class="ei">⚙️</div>Firebase not configured.</div></td></tr>';
+    return;
+  }
   const dept=currentUser.dept;
   document.getElementById('saTitle').textContent=getDeptIcon(dept)+' '+dept.split('·')[0].trim();
-  document.getElementById('saSubtitle').textContent='Department Head Dashboard · '+dept;
-  const complaints=getData('lda_complaints',[]).filter(c=>c.dept===dept);
-  const stats={total:complaints.length,pending:0,inprog:0,resolved:0,rejected:0};
-  complaints.forEach(c=>{
-    if(c.status==='Pending'||c.status==='Open')stats.pending++;
-    else if(c.status==='In Progress')stats.inprog++;
-    else if(c.status==='Resolved')stats.resolved++;
-    else if(c.status==='Rejected')stats.rejected++;
-  });
-  document.getElementById('saStats').innerHTML=`
-    <div class="stat-card blue"><div class="val">${stats.total}</div><div class="lbl">Total</div></div>
-    <div class="stat-card orange"><div class="val">${stats.pending}</div><div class="lbl">Pending / Open</div></div>
-    <div class="stat-card purple"><div class="val">${stats.inprog}</div><div class="lbl">In Progress</div></div>
-    <div class="stat-card green"><div class="val">${stats.resolved}</div><div class="lbl">Resolved</div></div>
-    <div class="stat-card red"><div class="val">${stats.rejected}</div><div class="lbl">Rejected</div></div>
-  `;
-  renderSubAdminTable();
+  document.getElementById('saSubtitle').textContent='Department Head · '+dept;
+  showLoading('Loading department complaints...');
+  try{
+    allSAComplaints=await window.fbGetComplaints({dept});
+    const s={total:allSAComplaints.length,pending:0,inprog:0,resolved:0,rejected:0};
+    allSAComplaints.forEach(c=>{
+      if(c.status==='Pending'||c.status==='Open')s.pending++;
+      else if(c.status==='In Progress')s.inprog++;
+      else if(c.status==='Resolved')s.resolved++;
+      else if(c.status==='Rejected')s.rejected++;
+    });
+    document.getElementById('saStats').innerHTML=`
+      <div class="stat-card blue"><div class="val">${s.total}</div><div class="lbl">Total</div></div>
+      <div class="stat-card orange"><div class="val">${s.pending}</div><div class="lbl">Pending / Open</div></div>
+      <div class="stat-card purple"><div class="val">${s.inprog}</div><div class="lbl">In Progress</div></div>
+      <div class="stat-card green"><div class="val">${s.resolved}</div><div class="lbl">Resolved</div></div>
+      <div class="stat-card red"><div class="val">${s.rejected}</div><div class="lbl">Rejected</div></div>`;
+    filterSATable();
+  }catch(e){console.error(e);alert('Firebase error: '+e.message);}
+  hideLoading();
 }
 
-function renderSubAdminTable(){
+function filterSATable(){
   const q=document.getElementById('saSearchQ').value.toLowerCase();
   const status=document.getElementById('saFilterStatus').value;
-  let complaints=getData('lda_complaints',[]).filter(c=>c.dept===currentUser.dept);
-  if(q) complaints=complaints.filter(c=>c.ref.toLowerCase().includes(q)||c.name.toLowerCase().includes(q)||c.subject.toLowerCase().includes(q));
-  if(status) complaints=complaints.filter(c=>c.status===status);
+  let list=allSAComplaints.filter(c=>{
+    if(q&&!c.ref.toLowerCase().includes(q)&&!c.name.toLowerCase().includes(q)&&!c.subject.toLowerCase().includes(q)) return false;
+    if(status&&c.status!==status) return false;
+    return true;
+  });
   const tbody=document.getElementById('saTbody');
-  if(!complaints.length){tbody.innerHTML='<tr><td colspan="8"><div class="empty-state"><div class="ei">✅</div>No complaints for your department</div></td></tr>';return;}
-  tbody.innerHTML=complaints.map(c=>`
-    <tr>
-      <td><span class="td-ref">${c.ref}</span></td>
-      <td><div class="td-name">${c.name}</div><div class="td-dept">${c.mobile||''}</div></td>
-      <td style="max-width:180px;font-size:13px">${c.subject}</td>
-      <td style="font-size:12px;color:var(--muted)">${c.category||'—'}</td>
-      <td><span class="${priorityClass(c.priority)}">${c.priority||'Normal'}</span></td>
-      <td><span class="${statusClass(c.status)}">${c.status}</span></td>
-      <td class="td-date">${fmtDate(c.submittedAt)}</td>
-      <td><button class="btn btn-sm btn-primary" onclick="openModal('${c.id}','subadmin')">Manage</button></td>
-    </tr>
-  `).join('');
+  if(!list.length){tbody.innerHTML='<tr><td colspan="8"><div class="empty-state"><div class="ei">✅</div>No complaints</div></td></tr>';return;}
+  tbody.innerHTML=list.map(c=>`<tr>
+    <td><span class="td-ref">${c.ref}</span></td>
+    <td><div class="td-name">${c.name}</div><div class="td-dept">${c.mobile||''}</div></td>
+    <td style="max-width:160px;font-size:13px">${c.subject}</td>
+    <td style="font-size:12px;color:var(--muted)">${c.category||'—'}</td>
+    <td><span class="${priorityClass(c.priority)}">${c.priority||'Normal'}</span></td>
+    <td><span class="${statusClass(c.status)}">${c.status}</span></td>
+    <td class="td-date">${fmtTs(c.submittedAt)}</td>
+    <td><button class="btn btn-sm btn-primary" onclick='openModal("${c.id}","subadmin",${JSON.stringify(c).replace(/'/g,"&#39;")})'>Manage</button></td>
+  </tr>`).join('');
 }
 
-// ════════════════════════════════════════════
+// ════════════════════════════════════════
 //  MODAL
-// ════════════════════════════════════════════
-function openModal(id, viewRole){
-  const complaints=getData('lda_complaints',[]);
-  const c=complaints.find(x=>x.id===id);
-  if(!c) return;
-  editingComplaintId=id;
-
+// ════════════════════════════════════════
+function openModal(id, viewRole, cObj){
+  const c = typeof cObj === 'string' ? JSON.parse(cObj) : cObj;
+  editingComplaintId = id;
   document.getElementById('modalTitle').textContent='Complaint · '+c.ref;
 
   let body=`
-    <div class="detail-row"><span class="detail-label">Applicant</span><span class="detail-val">${c.name} / ${c.nameMr||''}</span></div>
-    <div class="detail-row"><span class="detail-label">Mobile</span><span class="detail-val">${c.mobile}</span></div>
-    <div class="detail-row"><span class="detail-label">Address</span><span class="detail-val">${c.address}</span></div>
+    <div class="detail-row"><span class="detail-label">Applicant</span><span class="detail-val">${c.name}${c.nameMr?' / '+c.nameMr:''}</span></div>
+    <div class="detail-row"><span class="detail-label">Mobile</span><span class="detail-val">${c.mobile||'—'}</span></div>
+    <div class="detail-row"><span class="detail-label">Address</span><span class="detail-val">${c.address||'—'}</span></div>
     <div class="detail-row"><span class="detail-label">Department</span><span class="detail-val">${c.dept}</span></div>
     <div class="detail-row"><span class="detail-label">Category</span><span class="detail-val">${c.category||'—'}</span></div>
     <div class="detail-row"><span class="detail-label">Subject</span><span class="detail-val"><b>${c.subject}</b></span></div>
     <div class="detail-row"><span class="detail-label">Description</span><span class="detail-val" style="white-space:pre-wrap;line-height:1.7">${c.desc}</span></div>
     <div class="detail-row"><span class="detail-label">Priority</span><span class="detail-val"><span class="${priorityClass(c.priority)}">${c.priority||'Normal'}</span></span></div>
     <div class="detail-row"><span class="detail-label">Status</span><span class="detail-val"><span class="${statusClass(c.status)}">${c.status}</span></span></div>
-    <div class="detail-row"><span class="detail-label">Submitted</span><span class="detail-val">${fmtDate(c.submittedAt)}</span></div>
-  `;
+    <div class="detail-row"><span class="detail-label">Submitted</span><span class="detail-val">${fmtTs(c.submittedAt)}</span></div>`;
 
+  // Files with download links
   if(c.files&&c.files.length){
-    body+=`<div class="detail-row"><span class="detail-label">Documents</span><span class="detail-val">${c.files.map(f=>`<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px"><span class="file-ext">${f.name.split('.').pop().toUpperCase()}</span>${f.name}</div>`).join('')}</span></div>`;
+    body+=`<div class="detail-row"><span class="detail-label">Documents</span><span class="detail-val">`;
+    c.files.forEach(f=>{
+      body+=`<div style="margin-bottom:6px;display:flex;align-items:center;gap:8px">
+        <span class="file-ext">${f.name.split('.').pop().toUpperCase()}</span>
+        ${f.url?`<a class="file-link" href="${f.url}" target="_blank">📥 ${f.name}</a>`:`<span>${f.name}</span>`}
+      </div>`;
+    });
+    body+=`</span></div>`;
   }
 
-  // Replies thread
-  body+=`<div class="reply-thread"><h4>💬 Responses & Actions</h4>`;
+  // Replies
+  body+=`<div class="reply-thread"><h4>💬 Responses</h4>`;
   if(!c.replies||!c.replies.length){
     body+=`<p style="font-size:13px;color:var(--hint)">No responses yet.</p>`;
   } else {
     body+=c.replies.map(r=>`
-      <div class="reply-item ${r.role==='admin'?'admin-reply':r.role==='subadmin'?'dept-reply':'user-note'}">
-        <div class="reply-meta">${r.role==='admin'?'⚖️ District Collector':r.role==='subadmin'?'🏢 Dept. Head ('+r.dept+')':'👤 Applicant'} · ${fmtDate(r.at)}</div>
+      <div class="reply-item ${r.role==='admin'?'admin-reply':'dept-reply'}">
+        <div class="reply-meta">${r.role==='admin'?'⚖️ District Collector':'🏢 Dept. Head ('+r.dept+')'} · ${fmtTs(r.at)}</div>
         ${r.text}
-      </div>
-    `).join('');
+      </div>`).join('');
   }
 
-  // Reply compose for admin/subadmin
   if(viewRole==='admin'||viewRole==='subadmin'){
     body+=`<div class="reply-compose">
-      <div class="field" style="margin-bottom:8px"><label>Add Response / Remark</label>
+      <div class="field"><label>Add Response / Remark</label>
         <textarea id="replyText" placeholder="Type your response or action taken..."></textarea>
       </div>
     </div>`;
   }
   body+='</div>';
-
   document.getElementById('modalBody').innerHTML=body;
 
-  // Footer buttons
+  const selHtml=`<select id="modalStatus" style="font-family:'DM Sans',sans-serif;font-size:13px;padding:7px 12px;border:1.5px solid var(--border);border-radius:var(--rs);appearance:none;outline:none">
+    <option ${c.status==='Pending'?'selected':''}>Pending</option>
+    <option ${c.status==='Open'?'selected':''}>Open</option>
+    <option ${c.status==='In Progress'?'selected':''}>In Progress</option>
+    <option ${c.status==='Resolved'?'selected':''}>Resolved</option>
+    <option ${c.status==='Rejected'?'selected':''}>Rejected</option>
+  </select>`;
+
   let footer='';
-  if(viewRole==='admin'){
-    footer+=`
-      <select id="modalStatus" style="font-family:'DM Sans',sans-serif;font-size:13px;padding:7px 12px;border:1.5px solid var(--border);border-radius:var(--rs);appearance:none;outline:none;background-image:url('data:image/svg+xml,%3Csvg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'12\\' height=\\'12\\' viewBox=\\'0 0 24 24\\' fill=\\'none\\' stroke=\\'%236B6861\\' stroke-width=\\'2\\'%3E%3Cpolyline points=\\'6 9 12 15 18 9\\'%3E%3C/polyline%3E%3C/svg%3E');background-repeat:no-repeat;background-position:right 10px center;padding-right:30px">
-        <option ${c.status==='Pending'?'selected':''}>Pending</option>
-        <option ${c.status==='Open'?'selected':''}>Open</option>
-        <option ${c.status==='In Progress'?'selected':''}>In Progress</option>
-        <option ${c.status==='Resolved'?'selected':''}>Resolved</option>
-        <option ${c.status==='Rejected'?'selected':''}>Rejected</option>
-      </select>
-      <button class="btn btn-primary" onclick="saveModalAdmin()">Save & Reply</button>
-    `;
-  } else if(viewRole==='subadmin'){
-    footer+=`
-      <select id="modalStatus" style="font-family:'DM Sans',sans-serif;font-size:13px;padding:7px 12px;border:1.5px solid var(--border);border-radius:var(--rs);appearance:none;outline:none;background-image:url('data:image/svg+xml,%3Csvg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'12\\' height=\\'12\\' viewBox=\\'0 0 24 24\\' fill=\\'none\\' stroke=\\'%236B6861\\' stroke-width=\\'2\\'%3E%3Cpolyline points=\\'6 9 12 15 18 9\\'%3E%3C/polyline%3E%3C/svg%3E');background-repeat:no-repeat;background-position:right 10px center;padding-right:30px">
-        <option ${c.status==='Pending'?'selected':''}>Pending</option>
-        <option ${c.status==='Open'?'selected':''}>Open</option>
-        <option ${c.status==='In Progress'?'selected':''}>In Progress</option>
-        <option ${c.status==='Resolved'?'selected':''}>Resolved</option>
-        <option ${c.status==='Rejected'?'selected':''}>Rejected</option>
-      </select>
-      <button class="btn btn-green" onclick="saveModalSubAdmin()">Save & Reply</button>
-    `;
-  }
+  if(viewRole==='admin') footer+=selHtml+`<button class="btn btn-primary" id="saveModalBtn" onclick="saveModal('admin')">Save & Reply</button>`;
+  else if(viewRole==='subadmin') footer+=selHtml+`<button class="btn btn-green" id="saveModalBtn" onclick="saveModal('subadmin')">Save & Reply</button>`;
   footer+=`<button class="btn" onclick="closeModal()">Close</button>`;
   document.getElementById('modalFooter').innerHTML=footer;
   document.getElementById('modalOverlay').classList.remove('hidden');
 }
 
-function saveModalAdmin(){
+async function saveModal(role){
+  if(!window._fbReady){alert('Firebase not configured');return;}
   const text=document.getElementById('replyText')?.value.trim();
   const newStatus=document.getElementById('modalStatus')?.value;
-  const complaints=getData('lda_complaints',[]);
-  const idx=complaints.findIndex(x=>x.id===editingComplaintId);
-  if(idx===-1) return;
-  if(newStatus) complaints[idx].status=newStatus;
-  if(text){
-    if(!complaints[idx].replies) complaints[idx].replies=[];
-    complaints[idx].replies.push({role:'admin',text,at:new Date().toISOString()});
-  }
-  setData('lda_complaints',complaints);
-  closeModal();
-  renderAdminDash();
-  alert('Saved successfully!');
-}
-
-function saveModalSubAdmin(){
-  const text=document.getElementById('replyText')?.value.trim();
-  const newStatus=document.getElementById('modalStatus')?.value;
-  const complaints=getData('lda_complaints',[]);
-  const idx=complaints.findIndex(x=>x.id===editingComplaintId);
-  if(idx===-1) return;
-  if(newStatus) complaints[idx].status=newStatus;
-  if(text){
-    if(!complaints[idx].replies) complaints[idx].replies=[];
-    complaints[idx].replies.push({role:'subadmin',dept:currentUser.dept,text,at:new Date().toISOString()});
-  }
-  setData('lda_complaints',complaints);
-  closeModal();
-  renderSubAdminDash();
-  alert('Response saved!');
+  const btn=document.getElementById('saveModalBtn');
+  btn.disabled=true;
+  btn.innerHTML='<span class="spinner"></span> Saving...';
+  try{
+    // Get current complaint from Firestore
+    const all=await window.fbGetComplaints({});
+    const c=all.find(x=>x.id===editingComplaintId);
+    if(!c){alert('Complaint not found');return;}
+    const replies=c.replies||[];
+    if(text){
+      replies.push({
+        role,
+        dept:role==='subadmin'?currentUser.dept:undefined,
+        text,
+        at:new Date().toISOString()
+      });
+    }
+    await window.fbUpdateComplaint(editingComplaintId,{
+      status:newStatus||c.status,
+      replies
+    });
+    closeModal();
+    if(role==='admin') renderAdminDash();
+    else renderSubAdminDash();
+    alert('✅ Saved successfully!');
+  }catch(e){console.error(e);alert('Error: '+e.message);}
+  btn.disabled=false;
 }
 
 function closeModal(){document.getElementById('modalOverlay').classList.add('hidden');}
 function closeModalOutside(e){if(e.target===document.getElementById('modalOverlay'))closeModal();}
 
-// ════════════════════════════════════════════
+// ════════════════════════════════════════
 //  HELPERS
-// ════════════════════════════════════════════
+// ════════════════════════════════════════
 function statusClass(s){
-  if(s==='Pending') return 'status s-pending';
-  if(s==='Open') return 'status s-open';
-  if(s==='In Progress') return 'status s-inprogress';
-  if(s==='Resolved') return 'status s-resolved';
-  if(s==='Rejected') return 'status s-rejected';
-  return 'status s-pending';
+  const m={'Pending':'s-pending','Open':'s-open','In Progress':'s-inprogress','Resolved':'s-resolved','Rejected':'s-rejected'};
+  return 'status '+(m[s]||'s-pending');
 }
-
 function priorityClass(p){
-  if(p==='Urgent') return 'priority-high';
-  if(p==='High') return 'priority-med';
-  return 'priority-low';
+  if(p==='Urgent') return 'priority-urgent';
+  if(p==='High') return 'priority-high';
+  return 'priority-normal';
 }
-
-function fmtDate(iso){
-  if(!iso) return '—';
-  const d=new Date(iso);
+function fmtTs(ts){
+  if(!ts) return '—';
+  // Firebase Timestamp object or ISO string
+  const d = ts?.toDate ? ts.toDate() : new Date(ts);
+  if(isNaN(d)) return '—';
   return d.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})+' '+d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'});
 }
 
-// Init
 document.getElementById('f_dob').max=new Date().toISOString().split('T')[0];
 </script>
 </body>
